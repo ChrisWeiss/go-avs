@@ -3,11 +3,31 @@ package avs
 import (
 	"encoding/json"
 	"fmt"
+	"golang.org/x/net/http2"
 	"io"
 	"io/ioutil"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/http"
+	"time"
+)
+
+var (
+	tr = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	_           = http2.ConfigureTransport(tr)
+	http2Client = &http.Client{Transport: tr}
 )
 
 // Multipart object returned by AVS.
@@ -23,12 +43,12 @@ type Client struct {
 // CreateDownchannel establishes a persistent connection with AVS and returns a
 // read-only channel through which AVS will deliver directives.
 func (c *Client) CreateDownchannel(accessToken string) (<-chan *Message, error) {
-	req, err := http.NewRequest("GET", c.EndpointURL + DirectivesPath, nil)
+	req, err := http.NewRequest("GET", c.EndpointURL+DirectivesPath, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http2Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -97,13 +117,13 @@ func (c *Client) Do(request *Request) (*Response, error) {
 		bodyIn.Close()
 	}()
 	// Send the request to AVS.
-	req, err := http.NewRequest("POST", c.EndpointURL + EventsPath, body)
+	req, err := http.NewRequest("POST", c.EndpointURL+EventsPath, body)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", request.AccessToken))
 	req.Header.Add("Content-Type", writer.FormDataContentType())
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http2Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -168,12 +188,12 @@ func (c *Client) Do(request *Request) (*Response, error) {
 // still alive.
 func (c *Client) Ping(accessToken string) error {
 	// TODO: Once Go supports sending PING frames, that would be a better alternative.
-	req, err := http.NewRequest("GET", c.EndpointURL + PingPath, nil)
+	req, err := http.NewRequest("GET", c.EndpointURL+PingPath, nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http2Client.Do(req)
 	if err != nil {
 		return err
 	}
