@@ -26,8 +26,7 @@ var (
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
-	_           = http2.ConfigureTransport(tr)
-	http2Client = &http.Client{Transport: tr}
+	_ = http2.ConfigureTransport(tr)
 )
 
 // Multipart object returned by AVS.
@@ -48,6 +47,7 @@ func (c *Client) CreateDownchannel(accessToken string) (<-chan *Message, error) 
 		return nil, err
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	http2Client := &http.Client{Transport: tr}
 	resp, err := http2Client.Do(req)
 	if err != nil {
 		return nil, err
@@ -123,6 +123,7 @@ func (c *Client) Do(request *Request) (*Response, error) {
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", request.AccessToken))
 	req.Header.Add("Content-Type", writer.FormDataContentType())
+	http2Client := &http.Client{Transport: tr}
 	resp, err := http2Client.Do(req)
 	if err != nil {
 		return nil, err
@@ -193,6 +194,7 @@ func (c *Client) Ping(accessToken string) error {
 		return err
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	http2Client := &http.Client{Transport: tr}
 	resp, err := http2Client.Do(req)
 	if err != nil {
 		return err
